@@ -1,0 +1,81 @@
+# syntax=docker/dockerfile:1
+# silly_mcnulty · dxkuma-agent-channel 的 UBI10 基础镜像（两用：冒烟实测 → 生产演进）
+#
+# 构建：
+#   GitHub Actions：push 到 main 自动构建并推送 ghcr.io/residua1/silly_mcnulty（见 .github/workflows/）
+#   本地：podman build -f Containerfile -t dxkuma/agent-channel-base:dev .
+# 说明、运行方式与待验证清单见 README.md。
+
+# ---------- 阶段 1：EL10 同代镜像（取 UBI 仓库缺失的二进制） ----------
+# UBI10 仓库不含 tmux / bubblewrap（RHEL10 本体有但 UBI 子集剔除了）；
+# AlmaLinux 10 与 UBI10 同为 el10 / glibc 2.39，二进制兼容。
+FROM docker.io/almalinux:10 AS el10-tools
+RUN dnf install -y --setopt=install_weak_deps=0 tmux bubblewrap && dnf clean all
+
+# ---------- 阶段 2：主镜像 ----------
+FROM registry.access.redhat.com/ubi10/ubi:latest
+
+# 基础工具（逐项核对过 UBI 仓库：socat/git 在 appstream，其余在 baseos）
+RUN dnf install -y --setopt=install_weak_deps=0 \
+        socat git ca-certificates curl tar gzip findutils which procps-ng shadow-utils \
+    && dnf clean all && rm -rf /var/cache/yum
+
+# 拷入 tmux / bubblewrap，并做缺库断言（缺 .so 会在构建期失败；
+# 补法：COPY --from=el10-tools /usr/lib64/<lib> /usr/lib64/）
+COPY --from=el10-tools /usr/bin/tmux  /usr/bin/tmux
+COPY --from=el10-tools /usr/bin/bwrap /usr/bin/bwrap
+RUN ! ldd /usr/bin/tmux /usr/bin/bwrap | grep -q "not found" && tmux -V && bwrap --version
+
+# ripgrep：RHEL/Alma/UBI 10 仓库均无（仅 EPEL 10 有）；取官方 release 的 musl 静态构建，
+# 钉版本 + sha256 校验。已知上游 issue #3494：musl x86_64 在超大/高并发搜索
+# （约 20GiB / 180 万文件）下偶发 SIGSEGV——与本项目场景相距甚远，记录备查。
+# aarch64 构建：换 tarball 名与 SHA（15.2.0 起提供 aarch64-musl；见 README）。
+ARG RG_VERSION=15.2.0
+ARG RG_SHA256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+RUN curl -fsSL -o /tmp/rg.tgz \
+        "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+    && echo "${RG_SHA256}  /tmp/rg.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/rg.tgz -C /tmp \
+    && install -m 0755 "/tmp/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl/rg" /usr/bin/rg \
+    && rm -rf /tmp/rg.tgz "/tmp/ripgrep-${RG_VERSION}-x86_64-unknown-linux-musl" \
+    && rg --version | head -1
+
+# uv（钉 0.13.0：2026-10-09 发布，首个 "Add CPython 3.15.0" 的版本）
+COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /uvx /bin/
+
+# 托管 Python 3.15.0（3.15.0 于 2026-10-09 GA；构建后禁用运行时下载）
+ENV UV_PYTHON_INSTALL_DIR=/opt/python \
+    UV_PYTHON_BIN_DIR=/usr/local/bin \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON_PREFERENCE=only-managed \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1
+RUN uv python install 3.15.0 \
+    && uv run --no-project --python 3.15.0 python -c "import sys; print(sys.version)" \
+    && chmod -R a+rX /opt/python
+
+# 容器预置（官方 devcontainer 建议）
+ENV DISABLE_AUTOUPDATER=1 \
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
+# 非 root 运行用户（CC 在 root 下拒绝 --dangerously-skip-permissions；沙盒/登录均按普通用户语义）
+RUN useradd -m -u 1000 -s /bin/bash kuma \
+    && mkdir -p /home/kuma/.claude-config && chown -R kuma:kuma /home/kuma
+ENV PATH=/home/kuma/.local/bin:$PATH \
+    CLAUDE_CONFIG_DIR=/home/kuma/.claude-config
+USER kuma
+WORKDIR /home/kuma
+
+# Claude Code：官方安装脚本（装到 kuma 名下 /home/kuma/.local/bin/claude）。
+# - 脚本版默认后台自更新——已由 DISABLE_AUTOUPDATER=1 禁用；升级 = 重建镜像。
+# - 钉版本：--build-arg CLAUDE_INSTALL_CHANNEL=2.1.293（默认 stable）。
+# - 已知坑：以 root 且 cwd 为 / 运行安装器会 hang——故此处以 kuma 身份、cwd 在 /home/kuma 运行。
+ARG CLAUDE_INSTALL_CHANNEL=stable
+RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_INSTALL_CHANNEL}"
+
+# 最终自证：全部命令跑通才算构建成功
+RUN claude --version && uv --version \
+    && uv run --no-project --python 3.15.0 python -V \
+    && tmux -V && bwrap --version && rg --version | head -1 && socat -V | head -1
+
+CMD ["/bin/bash"]
