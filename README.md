@@ -40,7 +40,7 @@ podman run -it --rm --name kuma-smoke \
   dxkuma/agent-channel-base:dev
 ```
 
-**入口行为**（ENTRYPOINT `kuma-entrypoint` ＋ 默认 CMD＝`tail -f /dev/null`）：显式命令 > 无命令时保活；若平台把 CMD 清空，脚本兜底为"有 tty 落 bash、无 tty 保活"。需要交互 shell：`podman run -it ... bash` 或 `podman exec -it <name> bash`。
+**入口行为**（ENTRYPOINT `kuma-entrypoint` ＋ 默认 CMD＝`sleep infinity`）：显式命令 > 无命令时保活；若平台把 CMD 清空，脚本兜底为"有 tty 落 bash、无 tty 保活"。需要交互 shell：`podman run -it ... bash` 或 `podman exec -it <name> bash`。
 
 - 交互：上面的 `-it` 命令 → 直接进 bash，再 `tmux new -s smoke`；
 - 后台/无 tty（服务器自动化）：`podman run -d --name kuma-smoke ...（同参数）` → 容器保活，`podman exec -it kuma-smoke tmux new -A -s kuma`；

@@ -80,7 +80,7 @@ RUN printf '%s\n' \
         'if [ "$#" -gt 0 ]; then exec "$@"; fi' \
         'if [ -t 0 ]; then exec /bin/bash; fi' \
         'echo "[kuma] no tty: staying alive; use: podman exec -it <name> bash"' \
-        'exec tail -f /dev/null' \
+        'exec sleep infinity' \
         > /usr/local/bin/kuma-entrypoint \
     && chmod 0755 /usr/local/bin/kuma-entrypoint
 
@@ -104,5 +104,5 @@ RUN claude --version && uv --version \
 # 默认 CMD＝保活命令：面板类平台在"镜像无 CMD"时常用 bash 兜底，遇到无 tty 场景会秒退
 #（2026-10-14 实测于部署平台的 command/entrypoint 字段联动）；显式给上后平台沿用即可常驻。
 # 需要交互 shell：`podman run -it ... bash` 或 `podman exec -it <name> bash`。
-CMD ["tail", "-f", "/dev/null"]
+CMD ["sleep", "infinity"]
 ENTRYPOINT ["/usr/local/bin/kuma-entrypoint"]
