@@ -40,10 +40,11 @@ podman run -it --rm --name kuma-smoke \
   dxkuma/agent-channel-base:dev
 ```
 
-**入口行为**（ENTRYPOINT 脚本）：显式命令 > 有 tty 落 bash > 无 tty 保活（`tail -f /dev/null`）。
+**入口行为**（ENTRYPOINT 脚本）：显式命令 > 有 tty 落 bash > 无 tty 保活（`sleep infinity`）。
 
 - 交互：上面的 `-it` 命令 → 直接进 bash，再 `tmux new -s smoke`；
 - 后台/无 tty（服务器自动化）：`podman run -d --name kuma-smoke ...（同参数）` → 容器保活，`podman exec -it kuma-smoke tmux new -A -s kuma`；
+- **面板/平台**（有"启动命令"字段的）：该字段填 `sleep infinity`（会覆盖镜像命令；2026-10-14 实测可用）——字段留空时用的是镜像默认入口，旧镜像（无入口脚本）会秒退；
 - 单命令：`podman run --rm dxkuma/agent-channel-base:dev claude --version`。
 
 `tmux new -s smoke`；从宿主观察/接管：`podman exec -it kuma-smoke tmux attach -t smoke`。
