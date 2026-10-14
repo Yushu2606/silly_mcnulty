@@ -80,7 +80,7 @@ RUN printf '%s\n' \
         'if [ "$#" -gt 0 ]; then exec "$@"; fi' \
         'if [ -t 0 ]; then exec /bin/bash; fi' \
         'echo "[kuma] no tty: staying alive; use: podman exec -it <name> bash"' \
-        'exec sleep infinity' \
+        'exec tail -f /dev/null' \
         > /usr/local/bin/kuma-entrypoint \
     && chmod 0755 /usr/local/bin/kuma-entrypoint
 

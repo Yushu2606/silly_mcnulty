@@ -40,7 +40,7 @@ podman run -it --rm --name kuma-smoke \
   dxkuma/agent-channel-base:dev
 ```
 
-**入口行为**（ENTRYPOINT 脚本）：显式命令 > 有 tty 落 bash > 无 tty 保活（`sleep infinity`）。
+**入口行为**（ENTRYPOINT 脚本）：显式命令 > 有 tty 落 bash > 无 tty 保活（`tail -f /dev/null`）。
 
 - 交互：上面的 `-it` 命令 → 直接进 bash，再 `tmux new -s smoke`；
 - 后台/无 tty（服务器自动化）：`podman run -d --name kuma-smoke ...（同参数）` → 容器保活，`podman exec -it kuma-smoke tmux new -A -s kuma`；
