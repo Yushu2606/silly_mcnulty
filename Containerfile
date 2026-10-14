@@ -89,9 +89,9 @@ WORKDIR /home/kuma
 
 # Claude Code：官方安装脚本（装到 kuma 名下 /home/kuma/.local/bin/claude）。
 # - 脚本版默认后台自更新——已由 DISABLE_AUTOUPDATER=1 禁用；升级 = 重建镜像。
-# - 钉版本：--build-arg CLAUDE_INSTALL_CHANNEL=2.1.293（默认 stable）。
+# - 版本钉 2.1.299（stable 通道滞后：2026-10-14 实测 stable=2.1.287、channels 不可用；可 --build-arg 覆盖）。
 # - 已知坑：以 root 且 cwd 为 / 运行安装器会 hang——故此处以 kuma 身份、cwd 在 /home/kuma 运行。
-ARG CLAUDE_INSTALL_CHANNEL=stable
+ARG CLAUDE_INSTALL_CHANNEL=2.1.299
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- "${CLAUDE_INSTALL_CHANNEL}"
 
 # 最终自证：全部命令跑通才算构建成功
