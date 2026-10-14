@@ -15,7 +15,7 @@ dxkuma 机器人体系的**基础镜像构建仓**：为 **dxkuma-agent-channel*
 | 组件 | 锚点 | 来源与备注 |
 |---|---|---|
 | Python | **3.15.0**（2026-10-09 GA） | uv 托管（`linux-gnu` 构建，glibc 2.17 基线；UBI10 是 2.39，无碍）。UBI 仓库最高 3.14，不用 |
-| uv | **0.13.0**（2026-10-09） | 官方镜像 COPY；首个 "Add CPython 3.15.0"。uv 可用 Python 列表按版本冻结，必须 ≥ 0.13.0 |
+| uv | **0.13.0**（2026-10-09） | 官方镜像 COPY；首个 "Add CPython 3.15.0"。uv 可用 Python 列表按版本冻结，必须 ≥ 0.13.0。镜像内 `UV_PYTHON_DOWNLOADS=manual`（显式安装允许、运行期不自动下载；`never` 会连 install 一起拒） |
 | Claude Code | 官方安装脚本，默认 `stable` | 装到 `kuma` 名下；可 `--build-arg CLAUDE_INSTALL_CHANNEL=<版本号>` 钉死；脚本版默认自更新，容器内已禁用（升级 = 重建镜像） |
 | tmux / bubblewrap | 从 `almalinux:10` 多阶段 COPY；运行时依赖从 UBI 仓库 dnf 安装 | **UBI10 仓库没有这两个二进制**（RHEL10 本体有；Alma10 同 el10 / glibc 2.39，二进制兼容）。依赖（libevent/ncurses-libs/systemd-libs/libcap/libselinux/libgcc）**在 UBI 仓库内但基础镜像未预装**——需显式 dnf |
 | ripgrep | **15.2.0**（官方 musl 静态，钉 sha256） | RHEL/Alma/UBI 10 仓库均无（仅 EPEL 10 有）。**EPEL 备选**：Alma 阶段 `dnf install epel-release && dnf install ripgrep` |

@@ -48,16 +48,18 @@ RUN curl -fsSL -o /tmp/rg.tgz \
 # uv（钉 0.13.0：2026-10-09 发布，首个 "Add CPython 3.15.0" 的版本）
 COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /uvx /bin/
 
-# 托管 Python 3.15.0（3.15.0 于 2026-10-09 GA；构建后禁用运行时下载）
+# 托管 Python 3.15.0（3.15.0 于 2026-10-09 GA）。
+# UV_PYTHON_DOWNLOADS=manual：仅显式安装允许下载、运行期禁自动下载。
+# 注意不可用 never：uv 0.13 源码中 never 会连 `uv python install` 一起拒绝（2026-10-14 构建踩过）。
 ENV UV_PYTHON_INSTALL_DIR=/opt/python \
     UV_PYTHON_BIN_DIR=/usr/local/bin \
-    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON_DOWNLOADS=manual \
     UV_PYTHON_PREFERENCE=only-managed \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1
-RUN uv python install 3.15.0 \
-    && uv run --no-project --python 3.15.0 python -c "import sys; print(sys.version)" \
-    && chmod -R a+rX /opt/python
+RUN uv python install 3.15.0
+RUN uv run --no-project --python 3.15.0 python -c "import sys; print(sys.version)"
+RUN chmod -R a+rX /opt/python
 
 # 容器预置（官方 devcontainer 建议）
 ENV DISABLE_AUTOUPDATER=1 \
