@@ -2,7 +2,7 @@
 # silly_mcnulty · dxkuma-agent-channel 的 UBI10 基础镜像（两用：冒烟实测 → 生产演进）
 #
 # 构建：
-#   GitHub Actions：push 到 main 自动构建并推送 ghcr.io/residua1/silly_mcnulty（见 .github/workflows/）
+#   GitHub Actions：push 到 main 自动构建并推送 ghcr.io/yushu2606/silly_mcnulty（见 .github/workflows/）
 #   本地：podman build -f Containerfile -t dxkuma/agent-channel-base:dev .
 # 说明、运行方式与待验证清单见 README.md。
 
@@ -70,6 +70,20 @@ RUN useradd -m -u 1000 -s /bin/bash kuma \
     && mkdir -p /home/kuma/.claude-config && chown -R kuma:kuma /home/kuma
 ENV PATH=/home/kuma/.local/bin:$PATH \
     CLAUDE_CONFIG_DIR=/home/kuma/.claude-config
+
+# 入口脚本（必须在 root 段创建：写 /usr/local/bin 需要 root，否则 Permission denied）。
+# 行为：显式命令 > 交互(tty)落 bash > 无 tty 保活（供 podman exec 使用）。
+# 起因：纯 CMD ["/bin/bash"] 在无 tty（忘 -it / ssh 无 tty / -d）时读 EOF 即退 0。
+RUN printf '%s\n' \
+        '#!/bin/sh' \
+        '# kuma entrypoint: explicit cmd > tty gets bash > no-tty stays alive' \
+        'if [ "$#" -gt 0 ]; then exec "$@"; fi' \
+        'if [ -t 0 ]; then exec /bin/bash; fi' \
+        'echo "[kuma] no tty: staying alive; use: podman exec -it <name> bash"' \
+        'exec sleep infinity' \
+        > /usr/local/bin/kuma-entrypoint \
+    && chmod 0755 /usr/local/bin/kuma-entrypoint
+
 USER kuma
 WORKDIR /home/kuma
 
@@ -85,15 +99,5 @@ RUN claude --version && uv --version \
     && uv run --no-project --python 3.15.0 python -V \
     && tmux -V && bwrap --version && rg --version | head -1 && socat -V | head -1
 
-# 入口行为：显式命令 > 交互(tty)落 bash > 无 tty 保活（供 podman exec 使用）
-# 起因：纯 CMD ["/bin/bash"] 在无 tty（忘 -it / ssh 无 tty / -d）时读 EOF 即退 0。
-RUN printf '%s\n' \
-        '#!/bin/sh' \
-        '# kuma entrypoint: explicit cmd > tty gets bash > no-tty stays alive' \
-        'if [ "$#" -gt 0 ]; then exec "$@"; fi' \
-        'if [ -t 0 ]; then exec /bin/bash; fi' \
-        'echo "[kuma] no tty: staying alive; use: podman exec -it <name> bash"' \
-        'exec sleep infinity' \
-        > /usr/local/bin/kuma-entrypoint \
-    && chmod 0755 /usr/local/bin/kuma-entrypoint
+# 入口脚本创建于上方 root 段（写 /usr/local/bin 需要 root）
 ENTRYPOINT ["/usr/local/bin/kuma-entrypoint"]
