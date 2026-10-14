@@ -15,16 +15,21 @@ RUN dnf install -y --setopt=install_weak_deps=0 tmux bubblewrap && dnf clean all
 # ---------- 阶段 2：主镜像 ----------
 FROM registry.access.redhat.com/ubi10/ubi:latest
 
-# 基础工具（逐项核对过 UBI 仓库：socat/git 在 appstream，其余在 baseos）
+# 基础工具 + tmux/bwrap 的运行时依赖（均核对过在 UBI 仓库内）。
+# 注意：libevent/ncurses-libs/systemd-libs/libcap/libselinux/libgcc 属 UBI 仓库但基础镜像未预装
+# ——这是 2026-10-14 首次构建 ldd 断言失败的根因（UBI 只是没预装，并不是没有）。
 RUN dnf install -y --setopt=install_weak_deps=0 \
         socat git ca-certificates curl tar gzip findutils which procps-ng shadow-utils \
+        libevent ncurses-libs systemd-libs libcap libselinux libgcc \
     && dnf clean all && rm -rf /var/cache/yum
 
-# 拷入 tmux / bubblewrap，并做缺库断言（缺 .so 会在构建期失败；
-# 补法：COPY --from=el10-tools /usr/lib64/<lib> /usr/lib64/）
+# 拷入 tmux / bubblewrap（运行时依赖见上方 dnf 清单；若未来仍缺 .so，应急补法：
+# COPY --from=el10-tools /usr/lib64/<lib> /usr/lib64/）
 COPY --from=el10-tools /usr/bin/tmux  /usr/bin/tmux
 COPY --from=el10-tools /usr/bin/bwrap /usr/bin/bwrap
-RUN ! ldd /usr/bin/tmux /usr/bin/bwrap | grep -q "not found" && tmux -V && bwrap --version
+# 缺库断言：拆成每二进制一行；ldd 全输出进日志，失败时一眼定位缺什么
+RUN ldd /usr/bin/tmux  | tee /tmp/ldd-tmux.txt  && ! grep -q "not found" /tmp/ldd-tmux.txt  && tmux -V
+RUN ldd /usr/bin/bwrap | tee /tmp/ldd-bwrap.txt && ! grep -q "not found" /tmp/ldd-bwrap.txt && bwrap --version
 
 # ripgrep：RHEL/Alma/UBI 10 仓库均无（仅 EPEL 10 有）；取官方 release 的 musl 静态构建，
 # 钉版本 + sha256 校验。已知上游 issue #3494：musl x86_64 在超大/高并发搜索

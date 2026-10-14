@@ -6,7 +6,7 @@ dxkuma 机器人体系的**基础镜像构建仓**：为 **dxkuma-agent-channel*
 
 ## 构建产物
 
-- `ghcr.io/residua1/silly_mcnulty:latest` 与 `:sha-<commit>`
+- `ghcr.io/yushu2606/silly_mcnulty:latest` 与 `:sha-<commit>`
 - 触发：push 到 `main`（仅 `Containerfile` 或 workflow 变更时）或手动 `workflow_dispatch`
 - 首次使用：到仓库 Settings → Packages 把该镜像设为 public（或拉取端 `docker login ghcr.io`）
 
@@ -17,7 +17,7 @@ dxkuma 机器人体系的**基础镜像构建仓**：为 **dxkuma-agent-channel*
 | Python | **3.15.0**（2026-10-09 GA） | uv 托管（`linux-gnu` 构建，glibc 2.17 基线；UBI10 是 2.39，无碍）。UBI 仓库最高 3.14，不用 |
 | uv | **0.13.0**（2026-10-09） | 官方镜像 COPY；首个 "Add CPython 3.15.0"。uv 可用 Python 列表按版本冻结，必须 ≥ 0.13.0 |
 | Claude Code | 官方安装脚本，默认 `stable` | 装到 `kuma` 名下；可 `--build-arg CLAUDE_INSTALL_CHANNEL=<版本号>` 钉死；脚本版默认自更新，容器内已禁用（升级 = 重建镜像） |
-| tmux / bubblewrap | 从 `almalinux:10` 多阶段 COPY | **UBI10 仓库没有这两个**（RHEL10 本体有）；Alma10 同 el10 / glibc 2.39，二进制兼容 |
+| tmux / bubblewrap | 从 `almalinux:10` 多阶段 COPY；运行时依赖从 UBI 仓库 dnf 安装 | **UBI10 仓库没有这两个二进制**（RHEL10 本体有；Alma10 同 el10 / glibc 2.39，二进制兼容）。依赖（libevent/ncurses-libs/systemd-libs/libcap/libselinux/libgcc）**在 UBI 仓库内但基础镜像未预装**——需显式 dnf |
 | ripgrep | **15.2.0**（官方 musl 静态，钉 sha256） | RHEL/Alma/UBI 10 仓库均无（仅 EPEL 10 有）。**EPEL 备选**：Alma 阶段 `dnf install epel-release && dnf install ripgrep` |
 | socat / git / 基础工具 | UBI appstream / baseos | 直接 dnf；**镜像不需要 Node**（`@anthropic-ai/sandbox-runtime` 是 CC 内置的） |
 
@@ -62,7 +62,7 @@ grep " /proc" /proc/self/mountinfo | wc -l             # >1 通常 = /proc 被�
 
 ## 待验证清单（首建 / 首跑）
 
-- [ ] `ldd` 断言全过；若 tmux/bwrapper 缺库，按需补：`COPY --from=el10-tools /usr/lib64/<lib> /usr/lib64/`
+- [x] ~~`ldd` 断言~~ **已修（2026-10-14）**：根因＝UBI 基础镜像未预装 tmux/bwrap 的运行时依赖（libevent/ncurses-libs/systemd-libs/libcap/libselinux/libgcc 全在 UBI 仓库内）→ 已加入 dnf 清单；断言拆为每二进制一行、ldd 输出进日志
 - [ ] claude 脚本安装落点与断言（`claude --version` 在 kuma 的 PATH 下通过）
 - [ ] UBI10 未被官方点名支持 CC（按"RHEL10 用户空间"推断可行）——首跑 `claude -p "ok"` 确认
 - [ ] 自定义 API 环境下 channel 门禁（与 smoke-channel 记录表第 1 项合并验证）

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/residua1/silly_mcnulty
+  IMAGE: ghcr.io/yushu2606/silly_mcnulty
 
 jobs:
   build:
