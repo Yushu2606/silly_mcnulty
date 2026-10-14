@@ -85,4 +85,15 @@ RUN claude --version && uv --version \
     && uv run --no-project --python 3.15.0 python -V \
     && tmux -V && bwrap --version && rg --version | head -1 && socat -V | head -1
 
-CMD ["/bin/bash"]
+# 入口行为：显式命令 > 交互(tty)落 bash > 无 tty 保活（供 podman exec 使用）
+# 起因：纯 CMD ["/bin/bash"] 在无 tty（忘 -it / ssh 无 tty / -d）时读 EOF 即退 0。
+RUN printf '%s\n' \
+        '#!/bin/sh' \
+        '# kuma entrypoint: explicit cmd > tty gets bash > no-tty stays alive' \
+        'if [ "$#" -gt 0 ]; then exec "$@"; fi' \
+        'if [ -t 0 ]; then exec /bin/bash; fi' \
+        'echo "[kuma] no tty: staying alive; use: podman exec -it <name> bash"' \
+        'exec sleep infinity' \
+        > /usr/local/bin/kuma-entrypoint \
+    && chmod 0755 /usr/local/bin/kuma-entrypoint
+ENTRYPOINT ["/usr/local/bin/kuma-entrypoint"]
