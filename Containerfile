@@ -61,9 +61,10 @@ RUN uv python install 3.15.0
 RUN uv run --no-project --python 3.15.0 python -c "import sys; print(sys.version)"
 RUN chmod -R a+rX /opt/python
 
-# 容器预置（官方 devcontainer 建议）
-ENV DISABLE_AUTOUPDATER=1 \
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# 容器预置：仅禁自动更新。
+# 切勿设 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC：它同时禁用 feature-flag 拉取，
+# 会让 channels 显示 "not currently available"（claude-code#42982 结案同因，2026-10-14 实测踩过）。
+ENV DISABLE_AUTOUPDATER=1
 
 # 非 root 运行用户（CC 在 root 下拒绝 --dangerously-skip-permissions；沙盒/登录均按普通用户语义）
 RUN useradd -m -u 1000 -s /bin/bash kuma \
