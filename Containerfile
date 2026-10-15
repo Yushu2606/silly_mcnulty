@@ -75,6 +75,14 @@ RUN useradd -m -u 1000 -s /bin/bash kuma \
 ENV PATH=/home/kuma/.local/bin:$PATH \
     CLAUDE_CONFIG_DIR=/home/kuma/.claude-config
 
+# 桥（dxkuma-agent-channel 的 MCP channel server）专用 venv：预装 mcp<2，
+# 免运行期 uv 冷启动——daemon 生成的 .mcp.json 自动优先直启它（毫秒级 spawn），
+# 缺失才回落 uv run。起因：2026-10-15 M1d 首跑，桥冷启动下载超 CC 的 MCP 启动容忍。
+RUN uv venv /opt/dxkuma-bridge/venv --python 3.15.0 \
+    && uv pip install --python /opt/dxkuma-bridge/venv/bin/python 'mcp<2' \
+    && chown -R kuma:kuma /opt/dxkuma-bridge \
+    && /opt/dxkuma-bridge/venv/bin/python -c "import mcp; print('bridge venv ok:', mcp.__file__)"
+
 # 入口脚本（必须在 root 段创建：写 /usr/local/bin 需要 root，否则 Permission denied）。
 # 行为：显式命令 > 交互(tty)落 bash > 无 tty 保活（供 podman exec 使用）。
 # 起因：纯 CMD ["/bin/bash"] 在无 tty（忘 -it / ssh 无 tty / -d）时读 EOF 即退 0。
